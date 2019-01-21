@@ -1,0 +1,122 @@
+#include "hough.h"
+
+Hough::Hough(CImg<unsigned char> src, CImg<unsigned char> edge){
+    img = src;
+    res = edge;
+    double vote_thres = 0.2;
+
+    //process the img
+    initHoughSpace();
+    voteForLines(vote_thres);
+    calLines();
+    drawIntersects();
+    drawEdges();
+    img.display();
+}
+
+void Hough::initHoughSpace(){
+    int maxR = (int)sqrt(res.width() * res.width() + res.height() * res.height());
+    hough_space = CImg<int>(360, maxR, 1, 1, 0);
+    cimg_forXY(res, x, y){
+        if(res(x, y) == 0){
+            continue;
+        }
+        cimg_forX(hough_space, s){
+            double theta = (double)s * cimg::PI / 180;
+            int r = (int)(x * cos(theta)) + (int)(y * sin(theta));
+            if(r > 0 && r < maxR){
+                hough_space(s, r)++;
+                maxH = maxH > hough_space(s, r) ? maxH : hough_space(s, r);
+            }
+        }
+    }
+}
+
+void Hough::voteForLines(double vote_thres){
+    vector<pair<int, int>> rdn_points;  //redundant points
+    cimg_forXY(hough_space, theta, r){
+        if(theta == 0) continue;
+        if(hough_space(theta, r) > maxH * vote_thres){
+            bool flag = true;
+            for(int i = 0; i < rdn_points.size(); ++i){
+                if(sqrt((rdn_points[i].first - theta) * (rdn_points[i].first - theta) + 
+                (rdn_points[i].second - r) * (rdn_points[i].second - r)) < 60){
+                    flag = false;
+                    if(hough_space(rdn_points[i].first, rdn_points[i].second) < hough_space(theta, r)){
+                        rdn_points[i].first = theta;
+                        rdn_points[i].second = r;
+                    }
+                }
+            }
+            if(flag){
+                rdn_points.push_back(make_pair(theta, r));
+            }
+        }
+    }
+    for(int n = 0; n < 4; ++n){
+        int xpos = 0, ypos = 0, max = 0;
+        for(int i = 0; i < rdn_points.size(); ++i){
+            if(max < hough_space(rdn_points[i].first, rdn_points[i].second)){
+                max = hough_space(rdn_points[i].first, rdn_points[i].second);
+                xpos = rdn_points[i].first;
+                ypos = rdn_points[i].second;
+            }
+        }
+        points.push_back(make_pair(xpos, ypos));
+        hough_space(xpos, ypos) = 0;
+    }
+}
+void Hough::calLines(){
+    for(auto p : points){
+        double theta = double(p.first) * cimg::PI / 180.0;
+        double k = -cos(theta) / sin(theta);
+        double b = double(p.second) / sin(theta);
+        lines.push_back(make_pair(k, b));
+        cout << "Line: " << "y = " << k << "x + " << b << endl;
+    }
+}
+
+void Hough::drawIntersects(){
+    for(int i = 0; i < lines.size() - 1; ++i){
+        for(int j =  i + 1; j < lines.size(); ++j){
+            double 
+                k0 = lines[i].first,
+                k1 = lines[j].first,
+                b0 = lines[i].second,
+                b1 = lines[j].second,
+                x = (b1 - b0) / (k0 - k1),
+                y = k0 * x + b0;
+            if(x >= 0 && x < img.width() && y >= 0 && y < img.height()){
+                intersects.push_back(make_pair(x, y));
+            }
+        }
+    }
+    for (int i = 0; i < intersects.size(); i++) {
+        img.draw_circle(intersects[i].first, intersects[i].second, 50, red);
+    }
+}
+
+vector<pair<int, int>> Hough::getIntersects(){
+    return intersects;
+}
+
+void Hough::drawEdges(){
+    for(int i = 0; i < lines.size(); ++i){
+        vector<pair<int, int>> temp;
+        for(int j = 0; j < lines.size(); ++j){
+            if(j == i) continue;
+            double 
+                k0 = lines[i].first,
+                k1 = lines[j].first,
+                b0 = lines[i].second,
+                b1 = lines[j].second,
+                x = (b1 - b0) / (k0 - k1),
+                y = k0 * x + b0;
+            if(x >= 0 && x < img.width() && y >= 0 && y < img.height()){
+                temp.push_back(make_pair(x, y));
+            }
+        }
+        img.draw_line(temp[0].first, temp[0].second, temp[1].first, temp[1].second, blue);
+    }
+}
+

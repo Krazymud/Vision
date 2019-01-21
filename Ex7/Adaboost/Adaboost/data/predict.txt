@@ -1,0 +1,2 @@
+Recognition rate: test = 92.59
+Number of trees: 95
