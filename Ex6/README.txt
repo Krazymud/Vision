@@ -1,0 +1,3 @@
+代码文件在panorama文件夹中，
+可以使用make直接编译，也可以运行bin文件夹下的panorama.exe来执行。
+本地需要配置好vlfeat环境。
